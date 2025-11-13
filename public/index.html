@@ -1,0 +1,129 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Images → PDF demo</title>
+  <style>
+    body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial; max-width:800px; margin:40px auto; padding:0 16px; }
+    .uploader { border:2px dashed #ccc; padding:30px; border-radius:10px; text-align:center; cursor:pointer; }
+    .thumbs { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
+    .thumb { width:100px; height:100px; object-fit:cover; border-radius:6px; border:1px solid #ddd; }
+    .controls { margin-top:12px; display:flex; gap:8px; align-items:center; }
+    button { padding:8px 12px; border-radius:6px; border:1px solid #bbb; background:#f5f5f5; cursor:pointer; }
+    input[type=file] { display:none; }
+    .progress { height:8px; background:#eee; border-radius:4px; overflow:hidden; width:100%; margin-top:8px; }
+    .progress > span { display:block; height:100%; width:0%; background:linear-gradient(90deg,#4caf50,#3b82f6); }
+  </style>
+</head>
+<body>
+  <h1>Images → PDF</h1>
+  <p>Drag & drop images or click to select. They will be uploaded and converted into a single multi-page PDF.</p>
+
+  <label class="uploader" id="dropzone">
+    <input type="file" id="fileinput" accept="image/*" multiple />
+    <div>Click or drop images here</div>
+    <small>(JPEG, PNG, HEIC may be supported by browser; server normalizes to JPEG)</small>
+  </label>
+
+  <div class="thumbs" id="thumbs"></div>
+
+  <div class="controls">
+    <button id="makePdfBtn">Make PDF</button>
+    <button id="clearBtn">Clear</button>
+    <div style="flex:1"></div>
+    <div id="status"></div>
+  </div>
+
+  <div class="progress" id="progress" style="display:none"><span></span></div>
+
+<script>
+const dropzone = document.getElementById('dropzone');
+const fileinput = document.getElementById('fileinput');
+const thumbs = document.getElementById('thumbs');
+const makePdfBtn = document.getElementById('makePdfBtn');
+const clearBtn = document.getElementById('clearBtn');
+const status = document.getElementById('status');
+const progressWrap = document.getElementById('progress');
+const progressBar = progressWrap.querySelector('span');
+
+let files = []; // File objects in order
+
+function renderThumbs() {
+  thumbs.innerHTML = '';
+  files.forEach((f, idx) => {
+    const img = document.createElement('img');
+    img.className = 'thumb';
+    img.title = f.name;
+    img.src = URL.createObjectURL(f);
+    img.dataset.index = idx;
+    thumbs.appendChild(img);
+  });
+}
+
+dropzone.addEventListener('click', () => fileinput.click());
+fileinput.addEventListener('change', e => {
+  const chosen = Array.from(e.target.files);
+  files = files.concat(chosen);
+  renderThumbs();
+});
+
+dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.style.borderColor = '#888'; });
+dropzone.addEventListener('dragleave', e => { dropzone.style.borderColor = '#ccc'; });
+dropzone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropzone.style.borderColor = '#ccc';
+  const dropped = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'));
+  files = files.concat(dropped);
+  renderThumbs();
+});
+
+clearBtn.addEventListener('click', () => {
+  files = [];
+  renderThumbs();
+  status.textContent = '';
+  progressWrap.style.display = 'none';
+  progressBar.style.width = '0%';
+});
+
+makePdfBtn.addEventListener('click', async () => {
+  if (!files.length) return alert('Add some images first');
+  makePdfBtn.disabled = true;
+  status.textContent = 'Uploading & converting...';
+  progressWrap.style.display = 'block';
+  progressBar.style.width = '10%';
+
+  const form = new FormData();
+  files.forEach(f => form.append('images', f, f.name));
+
+  try {
+    const resp = await fetch('/make-pdf', {
+      method: 'POST',
+      body: form
+    });
+
+    if (!resp.ok) {
+      const text = await resp.text();
+      throw new Error(text || ('HTTP ' + resp.status));
+    }
+
+    // read response as blob (pdf)
+    const blob = await resp.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'images.pdf';
+    a.click();
+    status.textContent = 'Done — download should start.';
+    progressBar.style.width = '100%';
+  } catch (err) {
+    console.error(err);
+    status.textContent = 'Error: ' + err.message;
+    progressBar.style.width = '0%';
+  } finally {
+    makePdfBtn.disabled = false;
+    setTimeout(()=>{ progressWrap.style.display = 'none'; progressBar.style.width='0%'; }, 2000);
+  }
+});
+</script>
+</body>
+</html>
