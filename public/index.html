@@ -1,129 +1,338 @@
 <!doctype html>
-<html>
+<html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <title>Images → PDF demo</title>
-  <style>
-    body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial; max-width:800px; margin:40px auto; padding:0 16px; }
-    .uploader { border:2px dashed #ccc; padding:30px; border-radius:10px; text-align:center; cursor:pointer; }
-    .thumbs { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
-    .thumb { width:100px; height:100px; object-fit:cover; border-radius:6px; border:1px solid #ddd; }
-    .controls { margin-top:12px; display:flex; gap:8px; align-items:center; }
-    button { padding:8px 12px; border-radius:6px; border:1px solid #bbb; background:#f5f5f5; cursor:pointer; }
-    input[type=file] { display:none; }
-    .progress { height:8px; background:#eee; border-radius:4px; overflow:hidden; width:100%; margin-top:8px; }
-    .progress > span { display:block; height:100%; width:0%; background:linear-gradient(90deg,#4caf50,#3b82f6); }
-  </style>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Images → PDF — Polished</title>
+
+<!-- Tailwind CDN -->
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      colors: { accent: "#2563eb" },
+      boxShadow: { 'soft': '0 8px 30px rgba(20,20,50,0.06)' }
+    }
+  }
+}
+</script>
+
+<style>
+  /* small custom tweaks */
+  .dropzone-dashed {
+    background: linear-gradient(180deg, rgba(255,255,255,0.6), transparent);
+  }
+  .thumb-card { transition: transform .12s, box-shadow .12s; }
+  .thumb-card:hover { transform: translateY(-4px); box-shadow: 0 12px 30px rgba(16,24,40,0.08); }
+  .drag-handle { cursor: grab; }
+  .drag-handle:active { cursor: grabbing; }
+  .fade-in { animation: fadein .18s ease; }
+  @keyframes fadein { from { opacity: 0; transform: translateY(6px);} to { opacity:1; transform:translateY(0);} }
+</style>
 </head>
-<body>
-  <h1>Images → PDF</h1>
-  <p>Drag & drop images or click to select. They will be uploaded and converted into a single multi-page PDF.</p>
+<body class="min-h-screen bg-gray-50 antialiased">
+  <div class="max-w-5xl mx-auto px-4 py-10">
+    <div class="bg-white rounded-2xl shadow-soft p-6">
+      <div class="flex items-start gap-6">
+        <div class="w-full">
+          <div class="flex items-center gap-4">
+            <div class="bg-accent/10 text-accent rounded-full w-12 h-12 flex items-center justify-center text-lg font-semibold">PDF</div>
+            <div>
+              <h1 class="text-2xl font-semibold">Images → PDF</h1>
+              <p class="text-sm text-gray-500 mt-0.5">Drag, reorder, tweak quality, then export a clean multi-page PDF.</p>
+            </div>
+          </div>
 
-  <label class="uploader" id="dropzone">
-    <input type="file" id="fileinput" accept="image/*" multiple />
-    <div>Click or drop images here</div>
-    <small>(JPEG, PNG, HEIC may be supported by browser; server normalizes to JPEG)</small>
-  </label>
+          <!-- Upload area -->
+          <div id="dropzone" class="dropzone-dashed mt-6 border-2 border-dashed border-gray-200 rounded-xl p-6 text-center cursor-pointer hover:border-accent transition">
+            <input id="fileinput" type="file" accept="image/*" multiple class="hidden" />
+            <div class="flex flex-col items-center gap-2">
+              <svg class="w-8 h-8 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 3v12" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M7 8l5-5 5 5" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M21 21H3" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <div class="text-gray-700 text-lg font-medium">Click to select or drop images here</div>
+              <div class="text-xs text-gray-400">JPEG / PNG / WebP / HEIC (if supported). Up to 40 files — reorder before exporting.</div>
+            </div>
+          </div>
 
-  <div class="thumbs" id="thumbs"></div>
+          <!-- Controls -->
+          <div class="mt-5 flex flex-col md:flex-row md:items-center gap-4">
+            <div class="flex items-center gap-3">
+              <label class="text-sm text-gray-700">Quality</label>
+              <input id="quality" type="range" min="20" max="100" value="85" class="w-40">
+              <div id="qualityVal" class="text-sm text-gray-600 w-12 text-right">85%</div>
+            </div>
 
-  <div class="controls">
-    <button id="makePdfBtn">Make PDF</button>
-    <button id="clearBtn">Clear</button>
-    <div style="flex:1"></div>
-    <div id="status"></div>
+            <div class="flex items-center gap-3">
+              <label class="text-sm text-gray-700">Page size</label>
+              <select id="pagesize" class="border rounded-lg px-3 py-1 text-sm">
+                <option value="auto">Auto</option>
+                <option value="A4">A4</option>
+                <option value="Letter">Letter</option>
+              </select>
+            </div>
+
+            <div class="ml-auto flex gap-3">
+              <button id="clearBtn" class="px-4 py-2 rounded-lg bg-white border text-sm text-gray-700 shadow-sm hover:bg-gray-50">Clear</button>
+              <button id="makePdfBtn" class="px-4 py-2 rounded-lg bg-accent text-white text-sm font-medium hover:brightness-95 shadow">Make PDF</button>
+            </div>
+          </div>
+
+          <!-- Progress -->
+          <div id="progressWrap" class="mt-4 h-2 bg-gray-100 rounded-full overflow-hidden hidden">
+            <div id="progressBar" class="h-full bg-gradient-to-r from-green-400 to-indigo-500 w-0"></div>
+          </div>
+          <div id="status" class="mt-2 text-sm text-gray-500 min-h-[18px]"></div>
+        </div>
+      </div>
+
+      <!-- Thumbnails area -->
+      <div class="mt-6">
+        <div id="thumbs" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+          <!-- thumbnails injected here -->
+        </div>
+        <div id="emptyHint" class="text-sm text-gray-400 mt-4">No images yet — add some using the upload area above.</div>
+      </div>
+
+      <!-- Footer -->
+      <div class="mt-6 flex items-center justify-between text-xs text-gray-400">
+        <div>Server fields: <code>images</code>, <code>quality</code>, <code>pagesize</code></div>
+        <div>Tip: For privacy, run backend locally (http://localhost:3000)</div>
+      </div>
+    </div>
   </div>
 
-  <div class="progress" id="progress" style="display:none"><span></span></div>
-
 <script>
+/* ---------- Polished UI JS (drag-handle + mobile reorder buttons) ---------- */
 const dropzone = document.getElementById('dropzone');
 const fileinput = document.getElementById('fileinput');
 const thumbs = document.getElementById('thumbs');
+const emptyHint = document.getElementById('emptyHint');
 const makePdfBtn = document.getElementById('makePdfBtn');
 const clearBtn = document.getElementById('clearBtn');
+const quality = document.getElementById('quality');
+const qualityVal = document.getElementById('qualityVal');
+const pagesize = document.getElementById('pagesize');
+const progressWrap = document.getElementById('progressWrap');
+const progressBar = document.getElementById('progressBar');
 const status = document.getElementById('status');
-const progressWrap = document.getElementById('progress');
-const progressBar = progressWrap.querySelector('span');
 
-let files = []; // File objects in order
+let files = [];
+const MAX_FILES = 40;
 
-function renderThumbs() {
+/* Render thumbnails with handle + mobile reorder arrows */
+function render() {
   thumbs.innerHTML = '';
+  if (files.length === 0) {
+    emptyHint.style.display = 'block';
+    return;
+  }
+  emptyHint.style.display = 'none';
+
   files.forEach((f, idx) => {
-    const img = document.createElement('img');
-    img.className = 'thumb';
-    img.title = f.name;
-    img.src = URL.createObjectURL(f);
-    img.dataset.index = idx;
-    thumbs.appendChild(img);
+    const card = document.createElement('div');
+    card.className = 'thumb-card bg-white rounded-xl p-3 border border-gray-100 flex flex-col items-stretch gap-3 fade-in';
+    card.draggable = false;
+
+    // inner layout
+    card.innerHTML = `
+      <div class="relative rounded-md overflow-hidden bg-gray-50">
+        <img src="${f.url}" alt="${escapeHtml(f.file.name)}" class="w-full h-40 object-cover" />
+        <div class="absolute top-2 right-2 flex gap-2">
+          <button data-idx="${idx}" class="remove-btn bg-white/80 px-2 py-1 rounded-md text-xs text-red-600 hover:bg-red-50">Remove</button>
+        </div>
+      </div>
+
+      <div class="flex items-center justify-between gap-2">
+        <div class="flex-1 min-w-0">
+          <div class="text-sm font-medium text-gray-700 truncate">${escapeHtml(f.file.name)}</div>
+          <div class="text-xs text-gray-400">${f.sizeText} • ${f.dimText}</div>
+        </div>
+        <div class="flex items-center gap-2">
+          <button title="Move up" data-idx="${idx}" class="move-up hidden sm:inline-flex items-center justify-center w-8 h-8 rounded-md border bg-white text-gray-600 hover:bg-gray-50">▲</button>
+          <button title="Move down" data-idx="${idx}" class="move-down hidden sm:inline-flex items-center justify-center w-8 h-8 rounded-md border bg-white text-gray-600 hover:bg-gray-50">▼</button>
+
+          <!-- drag handle for desktop -->
+          <div class="drag-handle ml-2 p-2 rounded-md border bg-white cursor-grab hidden sm:inline-flex" draggable="true" title="Drag to reorder">≡</div>
+        </div>
+      </div>
+    `;
+
+    // button events
+    card.querySelector('.remove-btn').addEventListener('click', () => removeAt(idx));
+    card.querySelector('.move-up').addEventListener('click', () => move(idx, idx - 1));
+    card.querySelector('.move-down').addEventListener('click', () => move(idx, idx + 1));
+
+    // drag handle logic (desktop)
+    const handle = card.querySelector('.drag-handle');
+    handle.addEventListener('dragstart', (e) => {
+      e.dataTransfer.setData('text/plain', idx);
+      e.dataTransfer.effectAllowed = 'move';
+      handle.classList.add('opacity-60');
+      card.classList.add('opacity-60');
+    });
+    handle.addEventListener('dragend', () => {
+      handle.classList.remove('opacity-60');
+      card.classList.remove('opacity-60');
+    });
+
+    // allow dropping on card to reposition
+    card.addEventListener('dragover', (e) => { e.preventDefault(); card.classList.add('ring-1','ring-accent/30'); });
+    card.addEventListener('dragleave', () => card.classList.remove('ring-1','ring-accent/30'));
+    card.addEventListener('drop', (e) => {
+      e.preventDefault();
+      card.classList.remove('ring-1','ring-accent/30');
+      const from = Number(e.dataTransfer.getData('text/plain'));
+      const to = idx;
+      if (!Number.isNaN(from)) move(from, to);
+    });
+
+    thumbs.appendChild(card);
+  });
+
+  // mobile: show simple up/down buttons for each item (already visible via CSS breakpoints)
+}
+
+/* Helpers */
+function escapeHtml(s){ return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function formatBytes(n){
+  if (n < 1024) return n + ' B';
+  if (n < 1024*1024) return (n/1024).toFixed(1) + ' KB';
+  return (n/(1024*1024)).toFixed(1) + ' MB';
+}
+
+/* Add files: read dimensions for friendly label */
+function addFiles(list) {
+  const chosen = Array.from(list).filter(f => f.type && f.type.startsWith('image/'));
+  if (!chosen.length) return;
+  const slice = chosen.slice(0, MAX_FILES - files.length);
+  const promises = slice.map(f => readImageInfo(f));
+  Promise.all(promises).then(results => {
+    files = files.concat(results);
+    render();
   });
 }
 
-dropzone.addEventListener('click', () => fileinput.click());
-fileinput.addEventListener('change', e => {
-  const chosen = Array.from(e.target.files);
-  files = files.concat(chosen);
-  renderThumbs();
-});
+function readImageInfo(file) {
+  return new Promise(resolve => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      resolve({
+        file,
+        url,
+        sizeText: formatBytes(file.size),
+        dimText: `${img.naturalWidth}×${img.naturalHeight}`
+      });
+      URL.revokeObjectURL(img.src); // don't revoke file URL until used in DOM; we keep it in result
+    };
+    img.onerror = () => {
+      resolve({ file, url, sizeText: formatBytes(file.size), dimText: '—' });
+    };
+    img.src = url;
+  });
+}
 
-dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.style.borderColor = '#888'; });
-dropzone.addEventListener('dragleave', e => { dropzone.style.borderColor = '#ccc'; });
+/* remove / move / reorder */
+function removeAt(i){
+  if (!files[i]) return;
+  URL.revokeObjectURL(files[i].url);
+  files.splice(i,1);
+  render();
+}
+function move(from, to){
+  if (to < 0 || to >= files.length) return;
+  if (from === to) return;
+  const arr = [...files];
+  const [item] = arr.splice(from,1);
+  arr.splice(to,0,item);
+  files = arr;
+  render();
+}
+
+/* Dropzone events */
+dropzone.addEventListener('click', () => fileinput.click());
+dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('border-accent'); });
+dropzone.addEventListener('dragleave', () => { dropzone.classList.remove('border-accent'); });
 dropzone.addEventListener('drop', e => {
   e.preventDefault();
-  dropzone.style.borderColor = '#ccc';
-  const dropped = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'));
-  files = files.concat(dropped);
-  renderThumbs();
+  dropzone.classList.remove('border-accent');
+  addFiles(e.dataTransfer.files);
 });
+fileinput.addEventListener('change', e => { addFiles(e.target.files); fileinput.value = ''; });
 
+/* Clear button */
 clearBtn.addEventListener('click', () => {
+  files.forEach(f => URL.revokeObjectURL(f.url));
   files = [];
-  renderThumbs();
-  status.textContent = '';
-  progressWrap.style.display = 'none';
+  render();
+  progressWrap.classList.add('hidden');
   progressBar.style.width = '0%';
+  status.textContent = '';
 });
 
-makePdfBtn.addEventListener('click', async () => {
-  if (!files.length) return alert('Add some images first');
+/* Quality control */
+quality.addEventListener('input', () => { qualityVal.textContent = quality.value + '%'; });
+
+/* Make PDF: XHR with progress, friendly UI states */
+makePdfBtn.addEventListener('click', () => {
+  if (!files.length) { alert('Add images first'); return; }
+
   makePdfBtn.disabled = true;
-  status.textContent = 'Uploading & converting...';
-  progressWrap.style.display = 'block';
-  progressBar.style.width = '10%';
+  makePdfBtn.classList.add('opacity-70','cursor-not-allowed');
+  progressWrap.classList.remove('hidden');
+  progressBar.style.width = '4%';
+  status.textContent = 'Uploading...';
 
   const form = new FormData();
-  files.forEach(f => form.append('images', f, f.name));
+  files.forEach(f => form.append('images', f.file, f.file.name));
+  form.append('quality', quality.value);
+  form.append('pagesize', pagesize.value);
 
-  try {
-    const resp = await fetch('/make-pdf', {
-      method: 'POST',
-      body: form
-    });
+  const xhr = new XMLHttpRequest();
+  xhr.open('POST', '/make-pdf');
 
-    if (!resp.ok) {
-      const text = await resp.text();
-      throw new Error(text || ('HTTP ' + resp.status));
+  xhr.upload.onprogress = e => {
+    if (e.lengthComputable) {
+      const pct = Math.round((e.loaded / e.total) * 80);
+      progressBar.style.width = (4 + pct) + '%';
     }
+  };
 
-    // read response as blob (pdf)
-    const blob = await resp.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'images.pdf';
-    a.click();
-    status.textContent = 'Done — download should start.';
-    progressBar.style.width = '100%';
-  } catch (err) {
-    console.error(err);
-    status.textContent = 'Error: ' + err.message;
-    progressBar.style.width = '0%';
-  } finally {
+  xhr.onload = () => {
     makePdfBtn.disabled = false;
-    setTimeout(()=>{ progressWrap.style.display = 'none'; progressBar.style.width='0%'; }, 2000);
-  }
+    makePdfBtn.classList.remove('opacity-70','cursor-not-allowed');
+
+    if (xhr.status >= 200 && xhr.status < 300) {
+      const blob = xhr.response;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = 'images.pdf'; document.body.appendChild(a); a.click(); a.remove();
+      status.textContent = 'PDF ready — download started';
+      progressBar.style.width = '100%';
+      setTimeout(()=>{ progressWrap.classList.add('hidden'); progressBar.style.width = '0%'; status.textContent=''; }, 1400);
+    } else {
+      // read text error if possible
+      const reader = new FileReader();
+      reader.onload = () => status.textContent = 'Error: ' + reader.result;
+      reader.readAsText(xhr.response || new Blob());
+      progressBar.style.width = '0%';
+    }
+  };
+
+  xhr.responseType = 'blob';
+  xhr.onerror = () => {
+    makePdfBtn.disabled = false;
+    makePdfBtn.classList.remove('opacity-70','cursor-not-allowed');
+    status.textContent = 'Network error';
+    progressBar.style.width = '0%';
+  };
+
+  xhr.send(form);
 });
+
+/* initial render */
+render();
+
 </script>
 </body>
 </html>
