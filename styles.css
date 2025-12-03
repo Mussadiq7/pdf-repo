@@ -1,0 +1,9 @@
+/* minimal custom styles */
+.drag-over {
+  outline: 3px dashed rgba(99,102,241,0.6) !important;
+}
+
+/* make thumbnail images smoothly rotate when rotated via transform */
+.thumb-img {
+  transition: transform 0.2s ease;
+}

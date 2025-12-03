@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Images → PDF — Converter & Rearranger</title>
+
+  <!-- Tailwind (CDN build) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- custom styles -->
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="bg-gray-50 min-h-screen text-slate-800">
+  <div class="max-w-6xl mx-auto p-6">
+    <header class="mb-6">
+      <h1 class="text-3xl font-semibold">Images → PDF Converter</h1>
+      <p class="text-gray-600 mt-1">Upload images, rearrange pages, rotate, choose page size & orientation, then export a PDF — entirely in your browser.</p>
+    </header>
+
+    <main class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <!-- Left: controls -->
+      <section class="lg:col-span-1 bg-white rounded-lg shadow p-4">
+        <h2 class="text-lg font-medium mb-3">Controls</h2>
+
+        <label class="block mb-3">
+          <span class="text-sm text-gray-700">Add images</span>
+          <div id="dropArea" class="mt-2 p-4 border-2 border-dashed border-gray-200 rounded-lg bg-gray-50 text-center cursor-pointer">
+            <input id="fileInput" type="file" accept="image/*" multiple class="hidden">
+            <div class="text-sm text-gray-500">Click to choose files or drag & drop images here</div>
+            <div class="text-xs text-gray-400 mt-2">JPG/PNG/WebP are supported</div>
+          </div>
+        </label>
+
+        <div class="mb-3">
+          <label class="block text-sm text-gray-700">Page size</label>
+          <div class="flex gap-2 mt-2">
+            <select id="pageSize" class="block w-full rounded border px-2 py-1">
+              <option value="a4">A4 (210 × 297 mm)</option>
+              <option value="letter">Letter (216 × 279 mm)</option>
+              <option value="custom">Custom</option>
+            </select>
+          </div>
+          <div id="customSizeRow" class="mt-2 hidden grid grid-cols-2 gap-2">
+            <input id="customWidth" type="number" min="1" placeholder="width mm" class="border rounded px-2 py-1">
+            <input id="customHeight" type="number" min="1" placeholder="height mm" class="border rounded px-2 py-1">
+          </div>
+        </div>
+
+        <div class="mb-3">
+          <label class="block text-sm text-gray-700">Orientation</label>
+          <div class="mt-2 flex gap-2">
+            <label class="inline-flex items-center">
+              <input type="radio" name="orientation" value="portrait" checked class="mr-2">
+              Portrait
+            </label>
+            <label class="inline-flex items-center ml-4">
+              <input type="radio" name="orientation" value="landscape" class="mr-2">
+              Landscape
+            </label>
+          </div>
+        </div>
+
+        <div class="mb-3">
+          <label class="block text-sm text-gray-700">Image fitting</label>
+          <div class="mt-2 flex gap-2">
+            <label class="inline-flex items-center">
+              <input type="radio" name="fit" value="contain" checked class="mr-2">
+              Fit (contain)
+            </label>
+            <label class="inline-flex items-center ml-4">
+              <input type="radio" name="fit" value="cover" class="mr-2">
+              Cover (crop)
+            </label>
+          </div>
+        </div>
+
+        <div class="mb-3">
+          <label class="block text-sm text-gray-700">Margins (mm)</label>
+          <input id="margin" type="number" value="10" min="0" class="w-full border rounded px-2 py-1 mt-2">
+          <div class="text-xs text-gray-500 mt-1">Margin applied on all sides</div>
+        </div>
+
+        <div class="mb-3">
+          <label class="block text-sm text-gray-700">Other</label>
+          <div class="mt-2 flex gap-2">
+            <label class="inline-flex items-center">
+              <input id="addPageNumbers" type="checkbox" class="mr-2">
+              Add page numbers
+            </label>
+          </div>
+        </div>
+
+        <div class="mt-4 flex gap-2">
+          <button id="generateBtn" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded">Generate PDF</button>
+          <button id="clearBtn" class="bg-white border border-gray-300 px-4 py-2 rounded hover:bg-gray-50">Clear</button>
+        </div>
+
+        <div id="status" class="text-sm text-gray-600 mt-3"></div>
+      </section>
+
+      <!-- Center: thumbnails / reorder -->
+      <section class="lg:col-span-2 bg-white rounded-lg shadow p-4">
+        <h2 class="text-lg font-medium mb-3">Pages (drag to reorder)</h2>
+
+        <div id="thumbsWrap" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+          <!-- thumbnails injected here -->
+        </div>
+
+        <div class="mt-4 text-sm text-gray-500">
+          Tip: Use the rotate buttons on thumbnails. Drag thumbnails to reorder pages before generating the PDF.
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Sortable (for drag & drop reorder) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js" integrity="sha512-e1Np4w2J6gDk+8f0w4nqM3n1Wz81Wq4a4E9cZ5bU4q2FqfUNoR7eN6kF1Q2r8rE1Eo6q8f3VxgVfRq4v2qv9tQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+
+  <!-- jsPDF (UMD) -->
+  <!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" integrity="sha512-/5oG0FJrWwUjQba6hZbVwq3G9B1r6P1xKru6c6hUYfP2k2k1J6gZ0l2o8m7VJ4n3hGnh3Jm2tN6uA6vYB9E2+Q==" crossorigin="anonymous" referrerpolicy="no-referrer"></script> -->
+  <!-- jsPDF (Official CDN, guaranteed working) -->
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+
+
+  <!-- main app -->
+  <script src="app.js"></script>
+</body>
+</html>
